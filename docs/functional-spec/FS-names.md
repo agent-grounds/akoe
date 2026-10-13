@@ -18,17 +18,18 @@ enough:
 | Signal | service identity or group id, never a phone number |
 | Slack | direct conversation, and channel thread |
 | Discord | channel or thread |
-| Mail | thread: Gmail's thread id where Akoe can read it, otherwise an issued id ([§FS-names.1.2](FS-names.md#12-issued-for-generic-mail)) |
+| Matrix | direct room, a room's main timeline (`!room:server`), and each thread in a room (`!room:server/<thread root event id>`) |
+| Mail | thread: an issued id ([§FS-names.1.2](FS-names.md#12-issued-for-generic-mail)) |
 
 The account is not part of the id: the source's provider name already names it.
+A Matrix room's alias, such as `#suppliers:example.org`, can be moved to another
+room, so it is never part of an id.
 
 **Example.** A direct WhatsApp chat with +1 555 0142 is row
 `wa-me:15550142@s.whatsapp.net`. When the network later reveals the contact's
 LID, it joins that id as an alias and the row keeps its key.
 
-Source: V-A06, V-C10.
-
-- **Open:** the id for Matrix, which the verdict's grouping does not list.
+Source: V-A06, V-C10; settled 2026-10-13.
 
 ### 1.2 Issued for generic mail
 
@@ -59,33 +60,34 @@ Source: V-A04, V-A06.
 
 When late evidence shows that two conversations with issued ids are one thread,
 both ids stay and both rows keep being reported. Akoe retires neither, because
-it cannot see which row holds a draft.
+it cannot see which row holds a draft. From the merge on, both rows report the
+whole thread, every message of both, with the same reply descriptor and the same
+generation, and a new message appears in both. A draft on either row is judged
+against that one generation, so the two rows cannot send the same thing twice.
 
 **Example.** Rows `mail-me:k3` and `mail-me:k4` were issued for two mails that a
-later reply shows to be one thread. Both rows stay in ephor, and a draft on
-either is not stranded.
+later reply shows to be one thread. Both rows stay in ephor, each with all three
+mails, and a draft on either is not stranded. "Thanks, confirmed." posted from
+`k3` is accepted; the same words posted from `k4` find that operation and send
+nothing.
 
-Source: V-A27.
-
-- **Open:** which messages each of the two rows carries after the merge, and
-  which row a new message joins.
+Source: V-A27; settled 2026-10-13.
 
 ## 2. Threading generic mail
 
 Generic mail is threaded by `References` and `In-Reply-To`, never by subject.
-Gmail's own thread id is used where Akoe can read it. async-imap 0.11.3 parses
-Gmail's `X-GM-THRID` but exposes no accessor for it, so until one is added Gmail
-mail is threaded by its headers too.
+async-imap 0.11.3 parses Gmail's `X-GM-THRID` but exposes no accessor for it, so
+Gmail mail is threaded by its headers too. An account never changes how it
+names its threads: once Gmail's thread id can be read, it joins the issued ids
+as an alias and as evidence that two messages are one thread, and where it joins
+two issued ids, [§FS-names.1.4](FS-names.md#14-merged-threads-keep-both-ids) applies.
 
 **Example.** A supplier's reply carries only `In-Reply-To: <b2@example.org>`.
 Gmail files it in its own thread, but Akoe sees only the header and threads it
 with the message `<b2@example.org>`. Two unrelated mails both titled "Order"
 stay two conversations.
 
-Source: V-A06, V-C09.
-
-- **Open:** how Gmail's thread id, once readable, joins ids already issued for
-  the same threads, given [§FS-names.1.3](FS-names.md#13-an-issued-id-never-changes).
+Source: V-A06, V-C09; settled 2026-10-13.
 
 ## 3. Rooms
 
@@ -100,15 +102,34 @@ is spelled is Akoe's configuration; ephor matches it exactly.
 `wa-a` and `wa-b`. One claim on `whatsapp:G@g.us` in a registry row places both
 rows.
 
-Source: V-A06, V-A13.
+| Network | Room |
+|---|---|
+| WhatsApp | `whatsapp:<group id>@g.us` |
+| Signal | `signal:group:<group id>` |
+| Slack | `slack:<team id>/<channel id>`, such as `slack:T024BE7LD/C0123ABCD` |
+| Discord | `discord:<guild id>/<channel id>`; a thread is in its parent channel's room |
+| Matrix | `matrix:<room id>`; a thread is in its room's room |
+| mail | `mail:<address>/label/<label>` ([§FS-names.3.3](FS-names.md#33-a-label-the-owner-applies-can-be-a-room)) |
 
-- **Open:** the room grammar for each network. The verdict shows only
-  `whatsapp:<jid>` and `mail:<address>/label/<label>`.
+Every part is the network's own id, never a display name, which a member can
+change.
+
+Source: V-A06, V-A13; settled 2026-10-13.
 
 ### 3.2 A direct conversation has no room and no reason
 
 A direct conversation is reported with no room and with an empty reasons list;
 ephor's ordinary rule makes it wait when the last message is not the owner's.
+A conversation in a room carries facts about the owner's part in it, from
+ephor's closed list, never a judgement of whether it matters:
+
+| Reason | When |
+|---|---|
+| `mentioned` | a message carries the network's own mention of one of the owner's identities; words that merely contain the owner's name are not a mention |
+| `in-thread` | one of the owner's identities wrote a message in the conversation |
+| `authored` | one of the owner's identities wrote its first message |
+
+Akoe never reports `review-requested` or `assigned`.
 Akoe never reports a `direct` reason, since an unknown reason word fails
 ephor's whole answer. The conversation carries no inbox field either: where a
 personal inbox belongs is a registry row's fallback claim on the source, which
@@ -117,9 +138,12 @@ is ephor's.
 **Example.** A WhatsApp DM whose last message is the contact's "Can you call
 me?" is reported with `"reasons": []` and no room. ephor shows it waiting.
 
-Source: V-A12, V-C15.
+**Example.** In room `slack:T024BE7LD/C0123ABCD`, a colleague writes "@owner can
+you look at rhei#12?", tagging the owner. The thread is reported with
+`"reasons": ["mentioned"]`. Once the owner answers in it, `["mentioned",
+"in-thread"]`.
 
-- **Open:** which reason words Akoe reports for a conversation in a room.
+Source: V-A12, V-C15; settled 2026-10-13.
 
 ### 3.3 A label the owner applies can be a room
 
@@ -172,9 +196,37 @@ the old ids are stranded; that is the cost the person accepts by resetting.
 draft on `mail-me:k1` stays filed under the old row, and operation 41 on that
 thread is still in the ledger.
 
-Source: V-A27, V-C10.
+A person resets an account with `sudo -u akoe akoe reset-identity <account>`,
+which asks for the account's name to be typed again before it acts.
 
-- **Open:** the reset command.
+Source: V-A27, V-C10; settled 2026-10-13.
+
+### 4.4 An author is reported by address
+
+Each message's author is reported as an address, in one form per network, so
+that ephor can place a conversation by its authors:
+
+| Network | Author |
+|---|---|
+| mail | the address, in lower case: `orders@supplier.example.org` |
+| WhatsApp | the number, `+15550142`, or the hidden form `<id>@lid` where the network shows no number |
+| Signal | the number where Signal shares it, otherwise the service id |
+| Slack | `<team id>/<user id>`, such as `T024BE7LD/U012AB3CD` |
+| Discord | the user id |
+| Matrix | the user id, `@name:example.org` |
+
+The form first reported for an author is kept. When the network later shows
+another form of the same author, such as a WhatsApp contact's number behind a
+hidden id, it joins as an alias, and the messages keep their first form, because
+ephor recognises a message partly by its author. The author's display name is
+reported beside it as Akoe's own key `author_name`.
+
+**Example.** A WhatsApp contact first writes from a hidden id and is reported as
+`8411337102341@lid`. A week later the network reveals the number +1 555 0142.
+The contact's messages, old and new, are still reported as `8411337102341@lid`,
+and `akoe thread` lists `+15550142` as its alias.
+
+Source: V-A06, V-A12; ephor's FS-001-forge-interface (attribution from authors, 2026-10-08); settled 2026-10-13.
 
 ## 5. A group seen from two accounts
 

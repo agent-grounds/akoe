@@ -74,10 +74,13 @@ where the keeper is proved, by four checks on a test pair:
    restart.
 4. Akoe is killed during a send: the record shows one send or one `unknown`.
 
-If the keeper fails these checks, Akoe shrinks to adapters that read history at
-refresh plus the send record. If the WhatsApp library cannot surface replies
-the owner types on the phone, WhatsApp leaves scope: a feed in which every
-answered chat looks unanswered is worse than none.
+Signal, the other network with no history to read, passes the same four checks
+on a test pair of its own. A network whose library fails them leaves scope
+alone. If Akoe's own keeper fails them, its lease, its commit before
+acknowledgement or its replay after a kill, Akoe shrinks to adapters that read
+history at refresh plus the send record. If the WhatsApp library cannot surface
+replies the owner types on the phone, WhatsApp leaves scope: a feed in which
+every answered chat looks unanswered is worse than none.
 
 **Example.** On the test pair, the contact at +1 555 0142 writes "Are you free
 Sunday?" and the owner answers "Yes" on the phone. If the next refresh shows the

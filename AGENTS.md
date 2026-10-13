@@ -1,8 +1,10 @@
 # AGENTS.md
 
 Akoe is a message gateway between mail and chat accounts and ephor. The
-repository holds draft specifications only; start at README.md and
-docs/grund.md, and write or change the spec point before any behavior.
+repository holds specifications and architecture, and no code yet; start at
+README.md and docs/grund.md, and write or change the spec point before any
+behavior. The crates and the order they land in are
+[§AR-crates](docs/architecture/AR-crates.md#ar-crates-one-workspace-one-crate-per-seam-so-each-part-can-be-built-and-tested-on-its-own); how each is tested is [§AR-testing](docs/architecture/AR-testing.md#ar-testing-every-spec-example-is-a-test-the-networks-are-faked-where-they-can-be-and-proven-by-hand-where-they-cannot).
 
 Examples and fixtures are synthetic: `example.org` addresses and +1 555 01xx
 numbers, never a real name, address, number, message or session

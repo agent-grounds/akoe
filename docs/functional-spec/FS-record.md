@@ -17,11 +17,14 @@ record of [§FS-record.2.2](FS-record.md#22-record-and-cache).
 Between refreshes Akoe holds no connection to the server and has no file
 containing the supplier's words; the next refresh reads them from the server.
 
-Source: V-A04.
+A complete read is complete for the declared scope, which may begin at a start
+date the person chose ([§FS-record.7](FS-record.md#7-declared-scope)). The read lists every message in scope
+and fetches the words only of the conversations that are not retired. What one
+read costs on a mailbox of ten thousand and of a hundred thousand messages is
+measured on synthetic mailboxes before any real account is read, and stated
+here.
 
-- **Open:** the cost of a complete read of a large mailbox on every refresh is
-  unmeasured (V-A10 measured nothing), and the verdict sets no age bound on the
-  mail a refresh reads.
+Source: V-A04; settled 2026-10-13.
 
 ### 1.2 The read is the observation
 
@@ -70,8 +73,15 @@ network and is backed up:
   they arrived;
 - each account's verified remote identity ([§FS-names.4.1](FS-names.md#41-the-account-namespace)).
 
-The **cache** can be rebuilt from the network: any message index for mail.
-Deleting the cache changes no answer, only the cost of the next one.
+The record also holds each retirement, with the generation its conversation had
+when it was retired ([§FS-record.4.1](FS-record.md#41-retirement-is-a-persons-act)), because no network can say what a person
+retired.
+
+The **cache** can be rebuilt from the network: the index of mail headers, and the
+messages of the networks read from their history ([§FS-record.3.1](FS-record.md#31-what-is-kept)). Deleting
+the cache changes no answer, only the cost of the next one, except that the read
+which rebuilds it also sees edits and deletions older than the network's edit
+window ([§FS-record.6.3](FS-record.md#63-what-a-network-cannot-report-is-stated)).
 
 **Example.** Mail C arrives citing only B, and Akoe issues `k1`; ephor shows
 row `mail-me:k1` and a run drafts a reply on it. Later B turns up citing an
@@ -80,12 +90,29 @@ been deleted and rebuilt, the thread would come back as `mail-me:k0` with no
 draft, and an `unknown` send on `k1` would be forgotten, so a second press could
 send twice.
 
-Source: V-A04, V-A21, V-C10.
+Source: V-A04, V-A21, V-C10; settled 2026-10-13.
 
-- **Open:** how and where the record is backed up.
-- **Open:** whether a retirement ([§FS-record.4.1](FS-record.md#41-retirement-is-a-persons-act)) is record. The verdict does
-  not say; it cannot be rebuilt from the network, so this spec's reading is that
-  it is.
+### 2.3 Backup is a person's act
+
+Akoe writes a consistent copy of every account's record before each change to
+the store's format, and whenever a person runs `akoe backup <dir>`. A copy holds
+no session: a session is a key ([§FS-privacy.2.1](FS-privacy.md#21-configuration-secrets-and-record)), and a restored account is
+paired again ([§FS-names.4.1](FS-names.md#41-the-account-namespace)). Where copies go after that, and whether they
+are encrypted, is the owner's choice.
+
+A record restored with `akoe restore <dir>` may lack operations admitted after
+the copy was made, so a request that matched one of them would be sent again.
+A restored account therefore sends nothing until a person runs `akoe
+release-restore <account>`, having checked the network for what went out since
+the copy.
+
+**Example.** The disk holding `/var/lib/akoe` fails. The owner restores
+yesterday's copy and pairs `mail-me` again. `p` on a draft is refused with
+`mail-me: refused: restored from a copy of 2026-10-12; check what was sent since
+and run akoe release-restore mail-me`. The owner finds this morning's reply in
+Sent, resolves the draft in ephor as sent, and releases the account.
+
+Source: V-A04, V-A21; settled 2026-10-13.
 
 ## 3. Keepers
 
@@ -94,21 +121,25 @@ Source: V-A04, V-A21, V-C10.
 A network that cannot supply a conversation later is kept: Akoe holds the
 linked session and writes each received message to the record. WhatsApp and
 Signal are kept. Where a network keeps history that Akoe can read, Akoe reads
-that history rather than keeping a copy.
+that history rather than keeping a copy: mail ([§FS-record.1](FS-record.md#1-mail-is-read-at-refresh)), Slack, Discord
+and Matrix are read at refresh, and a read that completes during the request is
+the observation ([§FS-record.1.2](FS-record.md#12-the-read-is-the-observation)), with no session and no lease.
 
 **Example.** A WhatsApp message from +1 555 0142 arrives while ephor is not
 refreshing. Akoe's WhatsApp session receives it and writes it to the `wa-me`
 record; the next `messages` call answers from the record, because WhatsApp
 offers no history Akoe could ask for later.
 
-Source: V-A01, V-A04.
+**Example.** Slack's API cannot be reached during a refresh. The `slack-ag`
+read does not complete, and its sources fail; the next refresh that completes
+answers again with nothing missing, because Slack kept every message.
 
-- **Open:** whether Slack, Discord and Matrix are kept or read from history.
-  The verdict gives each a lease over a live session ([§FS-record.3.3](FS-record.md#33-per-network-lease-contracts)) and also
-  says history is read where it can be.
-- **Open:** whether the Signal keeper stays if the WhatsApp keeper fails the
-  checks of [§GRUND-akoe.3](../grund.md#3-when-it-shrinks), under which Akoe shrinks to read-at-refresh
-  adapters.
+Each keeper network passes the checks of [§GRUND-akoe.3](../grund.md#3-when-it-shrinks) on its own test pair. A
+network whose library fails them leaves scope alone; a failure of Akoe's own
+keeper core, its lease, its commit before acknowledgement or its replay after a
+kill, removes every keeper.
+
+Source: V-A01, V-A02, V-A04; settled 2026-10-13.
 
 ### 3.2 The vouching lease
 
@@ -126,25 +157,24 @@ vouch, and ephor shows its rows stale.
 
 Source: V-A05; ephor's FS-001-forge-interface.6, rule 1.
 
-- **Open:** each keeper source's maximum lease age, the bound check 1 of
-  [§GRUND-akoe.3](../grund.md#3-when-it-shrinks) tests.
-
 ### 3.3 Per-network lease contracts
 
-Each adapter is required to establish the lease as follows; these are
+Each keeper is required to establish the lease as follows; these are
 contracts Akoe must meet, not properties assumed of the libraries.
 
 | Network | The lease is |
 |---|---|
 | WhatsApp | a harmless exchange on the linked socket, plus a completed sync; never setting presence to "available" |
 | Signal | proven upstream receive health, plus continuity of Akoe's own subscription to the signal-cli daemon |
-| Slack (Socket Mode) | the subscribed socket, plus history reconciliation after a gap |
-| Discord | `HEARTBEAT_ACK` with sequence and resume |
-| Matrix | a completed `/sync` with its persisted token |
 
-**Example.** The Discord gateway stops acknowledging heartbeats while Akoe's
-process keeps running. Akoe loses the lease, and `discord-ag-rooms` fails until
-a resumed session acknowledges heartbeats again with its sequence.
+A network read from its history needs no lease ([§FS-record.3.1](FS-record.md#31-what-is-kept)). Were a live
+session ever added for one, its lease would be stated here first: for Slack's
+Socket Mode, the subscribed socket plus history reconciliation after a gap; for
+Discord's gateway, `HEARTBEAT_ACK` with sequence and resume.
+
+**Example.** signal-cli's receive loop stops reporting Signal's servers while
+Akoe's process keeps running. Akoe loses the `signal-me` lease, and the source
+fails until the loop reports the servers again.
 
 Source: V-A05.
 
@@ -160,11 +190,13 @@ longer than the network queues messages for it. The source fails with
 `wa-me: messages between 2026-03-01T08:00Z and 2026-03-03T09:00Z cannot be
 recovered`, and ephor shows `wa-me` rows as stale.
 
-Source: V-A05.
+A person acknowledges a gap with `sudo -u akoe akoe ack-gap <account> <gap>`,
+having looked at the network for what the interval held. The acknowledgement is
+recorded, `akoe config show` lists it, and the source answers again. The forge
+answer cannot say that messages may be missing, so nothing in it marks the gap;
+the person's acknowledgement is the only way past it.
 
-- **Open:** how a person acknowledges a known gap so that the source answers
-  again. The verdict says the gap stays a failure and says nothing about
-  clearing it.
+Source: V-A05; settled 2026-10-13.
 
 ### 3.5 A kill loses no received message
 
@@ -191,16 +223,33 @@ receives what the network queued for its linked device, and Signal what
 signal-cli's daemon received meanwhile; anything beyond the network's window is a
 gap ([§FS-record.3.4](FS-record.md#34-gaps)).
 
-Source: V-A07.
+Until a network's window is measured on its test pair, the window is the longest
+downtime a test has shown fully recovered on that network. Downtime longer than
+that fails as a gap, even where the network may in fact have queued everything.
 
-- **Open:** the measured window for each network.
+Source: V-A07; settled 2026-10-13.
+
+### 3.7 A lease has a maximum age
+
+A keeper's lease is lost when its newest network evidence is older than the
+account's maximum lease age, measured on a clock that does not jump. The default
+is twice the interval of the keeper's own harmless exchange with the network,
+and an account may set it. Check 1 of [§GRUND-akoe.3](../grund.md#3-when-it-shrinks) asserts that a cut
+connection fails the source within it.
+
+**Example.** `wa-me` exchanges a harmless query with WhatsApp every 60 seconds,
+so its maximum lease age is 120 seconds. The network is cut at 10:00:00; a
+refresh at 10:01:30 still answers, and one at 10:02:01 fails with `wa-me: cannot
+vouch: no network evidence for 121s`.
+
+Source: V-A05; settled 2026-10-13.
 
 ## 4. Retirement and quotas
 
 ### 4.1 Retirement is a person's act
 
 A conversation leaves Akoe's answers only when a person runs `akoe retire` on
-it. Akoe infers no retirement, from age or from the owner having had the last
+it ([§FS-interfaces.7](FS-interfaces.md#7-commands-for-a-person)). Akoe infers no retirement, from age or from the owner having had the last
 word. Retiring hides the conversation from the source's answers and changes
 nothing in the remote mailbox or chat. A new inbound message reactivates it.
 
@@ -221,9 +270,15 @@ words is a separate, deliberate act.
 the last 50, it would still wait on "Are you coming Sunday?", but a drafted
 answer would read a history that silently starts in the middle.
 
-Source: V-A07, V-C11.
+A person purges a retired conversation's words with `sudo -u akoe akoe purge
+<account> <conversation>`. It refuses a conversation that is not retired, or
+that has an `unknown` operation no person has resolved. It deletes the messages
+Akoe holds, and keeps the conversation's ids, its aliases and its operations;
+each operation keeps a hash of its payload in place of the words, so an
+identical request is still recognised ([§FS-sending.5.1](FS-sending.md#51-an-identical-request-returns-the-recorded-outcome)). A purged conversation
+that a new message reactivates starts from that message.
 
-- **Open:** the command that purges a retired conversation's words.
+Source: V-A07, V-C11; settled 2026-10-13.
 
 ### 4.3 A full quota fails the source
 
@@ -270,19 +325,41 @@ Source: V-A02, V-A16, V-C05.
 
 Where a network reports an edit, Akoe records a new revision of the message;
 where it reports a deletion, a tombstone. Where a network cannot report them,
-Akoe says so rather than implying that nothing was edited. An edit advances the
-thread's generation ([§FS-sending.4](FS-sending.md#4-the-thread-generation)).
+Akoe says so rather than implying that nothing was edited
+([§FS-record.6.3](FS-record.md#63-what-a-network-cannot-report-is-stated)). An edit or a deletion advances the thread's generation
+([§FS-sending.4](FS-sending.md#4-the-thread-generation)).
+
+The forge answer reports a revised message in place, with the words of its
+newest revision and its first time, author and `mine` unchanged. A deleted
+message stays in place with the words `(message deleted)`. Each message also
+carries Akoe's own keys `revision`, a number from 1, and `deleted`, a boolean;
+ephor ignores keys it does not know, and `akoe thread` shows them.
 
 **Example.** A contact on Signal edits "€100" to "€1,000". Akoe records
 revision 2 of that message, and a draft made against revision 1 is refused as
 stale ([§FS-sending.5.3](FS-sending.md#53-a-stale-never-sent-draft-is-refused)).
 
-Source: V-A16, ruling V-D04.
+Source: V-A16, ruling V-D04; settled 2026-10-13.
 
-- **Open:** how a revision and a tombstone appear in the forge answer, whose
-  message shape has no revision field.
-- **Open:** where Akoe states that a network cannot report edits or
-  deletions.
+### 6.3 What a network cannot report is stated
+
+| Network | Edits | Deletions |
+|---|---|---|
+| mail | none: a sent mail is never edited | not reported: a mail deleted from the server is no longer read, and leaves the answer unmarked |
+| WhatsApp, Signal | reported, as the session receives them | reported, as the session receives them |
+| Slack, Discord | seen within the account's edit window | seen within the account's edit window |
+| Matrix | reported, as the sync delivers them | reported, as redactions |
+
+An edit window is how far back each read looks again for changes, set per
+account. `akoe config show` states each account's line of this table in words.
+ephor recognises a thread by its first message, so a mail conversation whose
+first message is deleted from the server reaches ephor as a new thread.
+
+**Example.** `akoe config show` reports `discord-ag: edits and deletions seen
+within 7 days`. A message edited three weeks after it was sent keeps its old
+words in the answer, as the owner was told.
+
+Source: V-A16; settled 2026-10-13.
 
 ## 7. Declared scope
 
@@ -292,12 +369,21 @@ chose. `akoe config show` reports the chosen scope. A chosen boundary is not a
 claim that the mail it leaves out was irrelevant, and ephor grows no newsletter
 policy.
 
+| Network | Choices |
+|---|---|
+| mail | the folders or labels read; "all delivered mail", or "To or Cc without a List-Id", which leaves out Bcc-only mail and mailing lists |
+| WhatsApp, Signal | direct chats, groups, or both; or a named list of either |
+| Slack, Discord | every conversation the token can see, or a named list of them |
+| Matrix | every room the account has joined, or a named list of them |
+
+Every network's scope may also carry a start date. Nothing sent before it is
+answered, which bounds the first read of a large mailbox; the date is shown and
+chosen like any other boundary. A split account declares each of its scopes
+under a name ([§FS-interfaces.1.2](FS-interfaces.md#12-each-source-has-its-own-block)).
+
 **Example.** At activation the owner is offered "To/Cc and no List-Id", told
 that it leaves out Bcc-only mail and mailing lists, and picks "all delivered
 mail" instead. A supplier invoice sent through a list then appears, and
 `akoe config show` reports the scope as "all delivered mail".
 
-Source: V-A16.
-
-- **Open:** the full list of scope choices per network, and whether a scope
-  may carry a starting date for mail that predates activation.
+Source: V-A16; settled 2026-10-13.
