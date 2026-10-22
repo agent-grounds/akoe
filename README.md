@@ -33,3 +33,10 @@ are confined; synthetic test accounts carry the proofs until then
 Every rule ends with `Source:`, naming the entries of the founding agora's
 verdict (V-C certain, V-A agreed) and its rulings (V-D) that it rests on. An
 `Open:` bullet marks a question they leave unsettled. Examples are synthetic.
+
+## Checking
+
+Run `grund check --full` and `grund fmt --check` before committing, with grund
+0.19.0 or later: nothing runs them for you yet, and an older grund stops with
+`unsupported config version 2`. Install a current release with
+`cargo install grund --locked`.
